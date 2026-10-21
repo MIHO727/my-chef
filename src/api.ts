@@ -2,86 +2,121 @@ import type { MealFormData, ChatMessage } from '@/types';
 
 let messageIdCounter = 0;
 
+const CHAT_USER_ID = 'my-chef-user';
+const INITIAL_QUERY = 'この条件で今日の献立を提案してください';
+
+export interface DifyChatResult {
+  answer: string;
+  conversationId: string;
+}
+
 export function createMessage(sender: 'bot' | 'user', text: string): ChatMessage {
   messageIdCounter += 1;
   return { id: `msg-${messageIdCounter}`, sender, text };
 }
 
-function buildInitialProposal(data: MealFormData): string {
-  const ingredientsList = data.ingredients
-    ? data.ingredients.trim()
-    : '冷蔵庫にある食材';
-
-  const proposal = `素敵な献立をご提案します！🍳
-
-ご家族構成：${data.family || 'ご家族'}
-使える食材：${ingredientsList}
-ご要望：${data.requests || '特になし'}
-
-【今日の献立】
-1. 鮭とキャベツのバター醤油炒め
-   └ パパッと炒めるだけで子どもも大好き♪
-2. 大根とツナのさっぱりサラダ
-   └ ツナの旨味で野菜もパクパク食べられます
-3. みそ汁（大根とわかめ）
-   └ 温かい一杯でほっとひと息
-
-💡 ポイント：20分以内で完成！子ども用は味を薄めにして、野菜は細かく切ると食べやすくなりますよ。`;
-
-  return proposal;
+function buildInputs(data: MealFormData): Record<string, string> {
+  return {
+    family: data.family.trim(),
+    ingredients: data.ingredients.trim(),
+    requests: data.requests.trim(),
+  };
 }
 
-function buildFollowUpReply(question: string): string {
-  const q = question.toLowerCase();
+async function postChatMessage(
+  data: MealFormData,
+  query: string,
+  conversationId: string,
+): Promise<DifyChatResult> {
+  const body: Record<string, unknown> = {
+    inputs: buildInputs(data),
+    query,
+    response_mode: 'blocking',
+    user: CHAT_USER_ID,
+  };
 
-  if (q.includes('簡単') || q.includes('かんたん') || q.includes('時短')) {
-    return `もっと簡単にしましょう！😊
-
-【もっと簡単な献立】
-1. ツナとキャベツの塩こん炒め（フライパン一つで5分）
-2. 大根の即漬け（切って和えるだけ）
-3. インスタントみそ汁
-
-これなら忙しい日でも大丈夫！包丁を使う量も最小限です。`;
+  if (conversationId) {
+    body.conversation_id = conversationId;
   }
 
-  if (q.includes('野菜') || q.includes('きらい') || q.includes('嫌い')) {
-    return `野菜嫌いのお子さんにもおすすめです🍅
-
-【野菜を隠す工夫】
-・キャベツや大根を細かく刻んでツナと一緒に炒める
-・みそ汁に大根をすりおろして入れる（食感が分からない！）
-・ハンバーグやつくねに混ぜ込む
-
-「見えない野菜」から始めて、徐々に食感を残していくのがコツですよ。`;
+  let response: Response;
+  try {
+    response = await fetch('/api/chat-messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(
+      'サーバーに接続できませんでした。ネットワークを確認するか、しばらくしてからもう一度お試しください。',
+    );
   }
 
-  if (q.includes('アレルギー') || q.includes('除去') || q.includes('代わり')) {
-    return `アレルギーのご配慮、承知しました🌱
-
-ご安心ください、ご家族に安心な食材で代替案をご用意できます。どの食材を避けたいか、お子さんの年齢と合わせて教えていただけますか？`;
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error('サーバーからの応答を読み取れませんでした。');
   }
 
-  if (q.includes('もう一品') || q.includes('足りない') || q.includes('追加')) {
-    return `もう一品ですね！👀
+  if (!response.ok) {
+    const message =
+      typeof payload === 'object' &&
+      payload !== null &&
+      'message' in payload &&
+      typeof (payload as { message: unknown }).message === 'string'
+        ? (payload as { message: string }).message
+        : null;
 
-【追加のおかず】
-・卵スープ（卵1個・2分で完成）
-   └ ボリュームも栄養もアップ！
+    if (response.status === 401) {
+      throw new Error('APIの認証に失敗しました。DIFY_API_KEY の設定を確認してください。');
+    }
+    if (response.status === 404) {
+      throw new Error('チャットAPIが見つかりません。DIFY_API_URL の設定を確認してください。');
+    }
 
-これで献立がぐっと充実しますよ。`;
+    throw new Error(
+      message ?? `献立の取得に失敗しました（エラーコード: ${response.status}）。`,
+    );
   }
 
-  return `いいご質問ですね！😊
-ご要望に合わせてさらにアドバイスできます。たとえば「もっと簡単なのは？」「野菜嫌いの子ども用の工夫は？」「もう一品足りない」など、何でもお気軽に聞いてくださいね。`;
+  const answer =
+    typeof payload === 'object' &&
+    payload !== null &&
+    'answer' in payload &&
+    typeof (payload as { answer: unknown }).answer === 'string'
+      ? (payload as { answer: string }).answer
+      : '';
+
+  const newConversationId =
+    typeof payload === 'object' &&
+    payload !== null &&
+    'conversation_id' in payload &&
+    typeof (payload as { conversation_id: unknown }).conversation_id === 'string'
+      ? (payload as { conversation_id: string }).conversation_id
+      : conversationId;
+
+  if (!answer.trim()) {
+    throw new Error('Myシェフから回答が返ってきませんでした。もう一度お試しください。');
+  }
+
+  return { answer, conversationId: newConversationId };
 }
 
-export async function fetchInitialProposal(data: MealFormData): Promise<string> {
-  await new Promise((resolve) => setTimeout(resolve, 1200));
-  return buildInitialProposal(data);
+export async function fetchInitialProposal(
+  data: MealFormData,
+  conversationId = '',
+): Promise<DifyChatResult> {
+  return postChatMessage(data, INITIAL_QUERY, conversationId);
 }
 
-export async function fetchFollowUpReply(question: string): Promise<string> {
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-  return buildFollowUpReply(question);
+export async function fetchFollowUpReply(
+  question: string,
+  data: MealFormData,
+  conversationId: string,
+): Promise<DifyChatResult> {
+  if (!conversationId) {
+    throw new Error('会話が開始されていません。最初から献立を提案してもらってください。');
+  }
+  return postChatMessage(data, question, conversationId);
 }

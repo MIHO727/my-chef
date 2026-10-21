@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { ChefHat, Send, RotateCcw, Loader2 } from 'lucide-react';
 import type { ChatMessage } from '@/types';
 
@@ -70,13 +71,30 @@ export function ChatPanel({
             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
                 msg.sender === 'user'
-                  ? 'rounded-br-md bg-gradient-to-br from-orange-400 to-amber-400 text-white'
+                  ? 'whitespace-pre-wrap rounded-br-md bg-gradient-to-br from-orange-400 to-amber-400 text-white'
                   : 'rounded-bl-md bg-white text-stone-700 ring-1 ring-orange-100'
               }`}
             >
-              {msg.text}
+              {msg.sender === 'bot' ? (
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => <p className="my-2 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+                    ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold text-stone-800">{children}</strong>,
+                    h1: ({ children }) => <h1 className="mb-2 mt-3 text-base font-bold text-stone-800">{children}</h1>,
+                    h2: ({ children }) => <h2 className="mb-2 mt-3 text-sm font-bold text-stone-800">{children}</h2>,
+                    h3: ({ children }) => <h3 className="mb-1 mt-2 text-sm font-semibold text-stone-800">{children}</h3>,
+                  }}
+                >
+                  {msg.text}
+                </ReactMarkdown>
+              ) : (
+                msg.text
+              )}
             </div>
           </div>
         ))}

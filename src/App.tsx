@@ -17,6 +17,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [followUp, setFollowUp] = useState('');
   const [showChat, setShowChat] = useState(false);
+  const [conversationId, setConversationId] = useState('');
 
   const handleChange = useCallback((field: keyof MealFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -31,16 +32,17 @@ function App() {
 食材：${formData.ingredients || '未入力'}
 リクエスト：${formData.requests || 'なし'}`;
 
+    setConversationId('');
     setMessages([createMessage('user', summary)]);
 
     try {
-      const proposal = await fetchInitialProposal(formData);
-      setMessages((prev) => [...prev, createMessage('bot', proposal)]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        createMessage('bot', 'ごめんなさい、エラーが発生しました。もう一度お試しください。'),
-      ]);
+      const { answer, conversationId: newId } = await fetchInitialProposal(formData);
+      setConversationId(newId);
+      setMessages((prev) => [...prev, createMessage('bot', answer)]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'ごめんなさい、エラーが発生しました。もう一度お試しください。';
+      setMessages((prev) => [...prev, createMessage('bot', `⚠️ ${message}`)]);
     } finally {
       setLoading(false);
     }
@@ -55,21 +57,26 @@ function App() {
     setMessages((prev) => [...prev, createMessage('user', text)]);
 
     try {
-      const reply = await fetchFollowUpReply(text);
-      setMessages((prev) => [...prev, createMessage('bot', reply)]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        createMessage('bot', 'ごめんなさい、エラーが発生しました。もう一度お試しください。'),
-      ]);
+      const { answer, conversationId: newId } = await fetchFollowUpReply(
+        text,
+        formData,
+        conversationId,
+      );
+      setConversationId(newId);
+      setMessages((prev) => [...prev, createMessage('bot', answer)]);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'ごめんなさい、エラーが発生しました。もう一度お試しください。';
+      setMessages((prev) => [...prev, createMessage('bot', `⚠️ ${message}`)]);
     } finally {
       setLoading(false);
     }
-  }, [followUp, loading]);
+  }, [followUp, loading, formData, conversationId]);
 
   const handleReset = useCallback(() => {
     setMessages([]);
     setFollowUp('');
+    setConversationId('');
     setFormData(emptyForm);
     setShowChat(false);
   }, []);
