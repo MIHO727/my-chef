@@ -1,5 +1,7 @@
-import { Users, Refrigerator, MessageCircleHeart } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Users, Refrigerator, MessageCircleHeart, Mic } from 'lucide-react';
 import type { MealFormData } from '@/types';
+import { useSpeechInput } from '@/hooks/useSpeechInput';
 
 interface MealFormProps {
   values: MealFormData;
@@ -12,6 +14,20 @@ const inputClass =
   'w-full rounded-2xl border border-orange-200 bg-white/80 px-4 py-3 text-stone-700 placeholder-stone-400 shadow-sm transition focus:border-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-200';
 
 export function MealForm({ values, onChange, onSubmit, disabled }: MealFormProps) {
+  const ingredientsRef = useRef(values.ingredients);
+  ingredientsRef.current = values.ingredients;
+
+  const { supported, listening, error, toggle, cancel } = useSpeechInput((text) => {
+    const existing = ingredientsRef.current;
+    const next = existing.trim() ? `${existing}、${text}` : text;
+    ingredientsRef.current = next;
+    onChange('ingredients', next);
+  });
+
+  useEffect(() => {
+    if (disabled) cancel();
+  }, [disabled, cancel]);
+
   return (
     <form
       className="space-y-4 rounded-3xl bg-white/60 p-5 shadow-sm ring-1 ring-orange-100 backdrop-blur-sm"
@@ -41,15 +57,36 @@ export function MealForm({ values, onChange, onSubmit, disabled }: MealFormProps
           <Refrigerator className="h-4 w-4 text-orange-500" />
           冷蔵庫の食材
         </label>
-        <textarea
-          name="ingredients"
-          value={values.ingredients}
-          onChange={(e) => onChange('ingredients', e.target.value)}
-          placeholder="例：大根、ツナ、鮭、キャベツ"
-          rows={3}
-          className={`${inputClass} resize-none`}
-          disabled={disabled}
-        />
+        <div className="relative">
+          <textarea
+            name="ingredients"
+            value={values.ingredients}
+            onChange={(e) => onChange('ingredients', e.target.value)}
+            placeholder="例：大根、ツナ、鮭、キャベツ"
+            rows={3}
+            className={`${inputClass} block resize-none pb-12`}
+            disabled={disabled}
+          />
+          <button
+            type="button"
+            onClick={toggle}
+            disabled={!supported || disabled}
+            aria-label={listening ? '音声入力を止める' : '音声入力を始める'}
+            aria-pressed={listening}
+            className={`absolute bottom-2 right-2 flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium shadow-sm transition active:scale-95 disabled:cursor-not-allowed disabled:bg-stone-200 disabled:text-stone-400 ${
+              listening
+                ? 'bg-gradient-to-r from-orange-400 to-amber-400 text-white'
+                : 'bg-orange-100 text-orange-500 hover:bg-orange-200'
+            }`}
+          >
+            <Mic className={`h-4 w-4 ${listening ? 'animate-pulse' : ''}`} />
+            {listening && '聞き取り中…'}
+          </button>
+        </div>
+        {!supported && (
+          <p className="text-xs text-stone-500">このブラウザは音声入力に対応していません</p>
+        )}
+        {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
 
       <div className="space-y-1.5">
