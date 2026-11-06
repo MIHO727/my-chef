@@ -4,6 +4,11 @@ export interface MealFormData {
   requests: string;
 }
 
+export interface FavoriteRecipe {
+  text: string;
+  savedAt: string;
+}
+
 export type Sender = 'bot' | 'user';
 
 export interface ChatMessage {

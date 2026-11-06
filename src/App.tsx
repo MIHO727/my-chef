@@ -3,6 +3,8 @@ import { ChefHat } from 'lucide-react';
 import type { MealFormData, ChatMessage } from '@/types';
 import { MealForm } from '@/components/MealForm';
 import { ChatPanel } from '@/components/ChatPanel';
+import { FavoritesPanel } from '@/components/FavoritesPanel';
+import { useFavorites } from '@/hooks/useFavorites';
 import { createMessage, fetchInitialProposal, fetchFollowUpReply } from '@/api';
 
 const emptyForm: MealFormData = {
@@ -18,6 +20,14 @@ function App() {
   const [followUp, setFollowUp] = useState('');
   const [showChat, setShowChat] = useState(false);
   const [conversationId, setConversationId] = useState('');
+  const [showFavorites, setShowFavorites] = useState(false);
+  const {
+    favorites,
+    error: favoritesError,
+    isFavorite,
+    toggle: toggleFavorite,
+    remove: removeFavorite,
+  } = useFavorites();
 
   const handleChange = useCallback((field: keyof MealFormData, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -98,7 +108,16 @@ function App() {
             <h1 className="text-xl font-bold text-stone-700">Myシェフ</h1>
             <p className="text-sm text-stone-400">子育て家庭向け 献立提案チャットボット</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowFavorites(true)}
+            className="ml-auto flex-shrink-0 rounded-full border border-orange-200 bg-white px-3 py-1.5 text-xs font-medium text-stone-600 shadow-sm transition hover:border-orange-300 hover:text-orange-500 active:scale-95"
+          >
+            ⭐お気に入り（{favorites.length}）
+          </button>
         </header>
+
+        {favoritesError && <p className="mb-3 text-xs text-red-500">{favoritesError}</p>}
 
         {/* Form section — hidden after first submit on small screens */}
         <div className={showChat ? 'hidden sm:block' : ''}>
@@ -121,6 +140,8 @@ function App() {
               onSendFollowUp={handleSendFollowUp}
               onReset={handleReset}
               showFollowUp={!loading || messages.length > 0}
+              isFavorite={isFavorite}
+              onToggleFavorite={toggleFavorite}
             />
           </div>
         )}
@@ -130,6 +151,15 @@ function App() {
           Myシェフ © 2026 — 毎日の献立、もう悩まない
         </footer>
       </div>
+
+      {showFavorites && (
+        <FavoritesPanel
+          favorites={favorites}
+          error={favoritesError}
+          onRemove={removeFavorite}
+          onClose={() => setShowFavorites(false)}
+        />
+      )}
     </div>
   );
 }

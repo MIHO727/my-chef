@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { ChefHat, Send, RotateCcw, Loader2 } from 'lucide-react';
+import { ChefHat, Send, RotateCcw, Loader2, Star } from 'lucide-react';
 import type { ChatMessage } from '@/types';
+import { MarkdownText } from '@/components/MarkdownText';
+
+const ERROR_PREFIX = '⚠️';
 
 interface ChatPanelProps {
   messages: ChatMessage[];
@@ -11,6 +13,8 @@ interface ChatPanelProps {
   onSendFollowUp: () => void;
   onReset: () => void;
   showFollowUp: boolean;
+  isFavorite: (text: string) => boolean;
+  onToggleFavorite: (text: string) => void;
 }
 
 export function ChatPanel({
@@ -21,6 +25,8 @@ export function ChatPanel({
   onSendFollowUp,
   onReset,
   showFollowUp,
+  isFavorite,
+  onToggleFavorite,
 }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -71,30 +77,26 @@ export function ChatPanel({
             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+              className={`relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
                 msg.sender === 'user'
                   ? 'whitespace-pre-wrap rounded-br-md bg-gradient-to-br from-orange-400 to-amber-400 text-white'
-                  : 'rounded-bl-md bg-white text-stone-700 ring-1 ring-orange-100'
+                  : 'rounded-bl-md bg-white pr-10 text-stone-700 ring-1 ring-orange-100'
               }`}
             >
-              {msg.sender === 'bot' ? (
-                <ReactMarkdown
-                  components={{
-                    p: ({ children }) => <p className="my-2 last:mb-0">{children}</p>,
-                    ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
-                    ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
-                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                    strong: ({ children }) => <strong className="font-semibold text-stone-800">{children}</strong>,
-                    h1: ({ children }) => <h1 className="mb-2 mt-3 text-base font-bold text-stone-800">{children}</h1>,
-                    h2: ({ children }) => <h2 className="mb-2 mt-3 text-sm font-bold text-stone-800">{children}</h2>,
-                    h3: ({ children }) => <h3 className="mb-1 mt-2 text-sm font-semibold text-stone-800">{children}</h3>,
-                  }}
+              {msg.sender === 'bot' && !msg.text.startsWith(ERROR_PREFIX) && (
+                <button
+                  type="button"
+                  onClick={() => onToggleFavorite(msg.text)}
+                  aria-label={isFavorite(msg.text) ? 'お気に入りから外す' : 'お気に入りに保存'}
+                  aria-pressed={isFavorite(msg.text)}
+                  className={`absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full transition hover:text-amber-400 active:scale-95 ${
+                    isFavorite(msg.text) ? 'text-amber-400' : 'text-stone-300'
+                  }`}
                 >
-                  {msg.text}
-                </ReactMarkdown>
-              ) : (
-                msg.text
+                  <Star className={`h-4 w-4 ${isFavorite(msg.text) ? 'fill-current' : ''}`} />
+                </button>
               )}
+              {msg.sender === 'bot' ? <MarkdownText text={msg.text} /> : msg.text}
             </div>
           </div>
         ))}
